@@ -5,15 +5,16 @@ from selenium.webdriver.support import expected_conditions as EC
 import pandas as pd
 from datetime import datetime, timedelta
 import time
+import re
 
-# Requirement: 
+# Requirement:
 # Install the required packages using: pip install webdriver-manager selenium pandas
 
 URL = "https://goldbroker.com/charts/gold-price/vnd?#historical-chart"
 
-# format: YYYY, M, D
-START_DATE = datetime(2023, 1, 1)
-END_DATE   = datetime(2023, 1, 2)
+# Monthly from 01-Oct-2015 to 01-Oct-2025 (inclusive)
+START_DATE = datetime(2015, 10, 1)
+END_DATE   = datetime(2016, 10, 1)
 
 options = webdriver.ChromeOptions()
 options.add_argument("--start-maximized")
@@ -32,7 +33,7 @@ try:
     )
     allow_btn.click()
     print("[+] Cookie popup closed.")
-except:
+except Exception:
     print("[!] Cookie popup not found.")
 
 time.sleep(1)
@@ -46,7 +47,7 @@ try:
     )
     close_btn.click()
     print("[+] Ad popup closed.")
-except:
+except Exception:
     print("[!] Ad popup not found.")
 
 time.sleep(1)
@@ -78,6 +79,12 @@ RESULT_XPATH = "//*[@id='historical-chart']/section[3]/div/div/div/div/form/div[
 GET_BTN_XPATH = "//button[contains(.,'Get value') or contains(.,'Get Value') or contains(@class,'amcharts-period-input')]"
 DATE_INPUT_XPATH = "//*[@id='form_xau_date']"
 
+# helper to add one month while keeping day=1
+def add_one_month(dt):
+    year = dt.year + (dt.month // 12)
+    month = dt.month % 12 + 1
+    return datetime(year, month, 1)
+
 current = START_DATE
 while current <= END_DATE:
     print("Processing:", current.strftime("%Y-%m-%d"))
@@ -93,7 +100,8 @@ while current <= END_DATE:
     # clear via JS and set value
     driver.execute_script("arguments[0].value = '';", date_input)
     time.sleep(0.05)
-    # set the date with JS too (sometimes send_keys still blocked)
+
+    # format for site: dd-mm-yyyy
     date_str = current.strftime("%d-%m-%Y")
     try:
         # try send_keys first
@@ -111,7 +119,6 @@ while current <= END_DATE:
     time.sleep(0.3)
 
     # --- click Get value and wait for the result text to update
-    # get the element reference for the result (may exist but be empty)
     prev_text = ""
     try:
         prev_el = driver.find_element(By.XPATH, RESULT_XPATH)
@@ -138,21 +145,29 @@ while current <= END_DATE:
                 try:
                     el = driver.find_element(By.XPATH, RESULT_XPATH)
                     txt = el.text.strip()
-                    # sometimes contains only whitespace — require at least 1 non-digit char (currency) or digits
                     if txt and txt != prev_text and txt.lower() not in ("n/a", "-", "--"):
                         return txt
                     return False
                 except Exception:
                     return False
 
-            # wait up to 6 seconds per attempt
-            new_text = WebDriverWait(driver, 6, poll_frequency=0.4).until(result_has_text)
-            value = new_text if isinstance(new_text, str) else driver.find_element(By.XPATH, RESULT_XPATH).text.strip()
+            # wait up to 8 seconds per attempt
+            new_text = WebDriverWait(driver, 8, poll_frequency=0.4).until(result_has_text)
+            raw_value = new_text if isinstance(new_text, str) else driver.find_element(By.XPATH, RESULT_XPATH).text.strip()
+            # CLEAN: remove currency symbols ₫ and đ (keep commas)
+            if raw_value and raw_value.upper() not in ("N/A", "-", "--"):
+                cleaned = raw_value.replace("₫", "").replace("đ", "").strip()
+                # In case there are non-breaking spaces or other unicode spaces
+                cleaned = re.sub(r'[\u00A0\s]+', '', cleaned) if cleaned else cleaned
+                # If cleaned is empty after stripping, keep raw
+                value = cleaned if cleaned else raw_value
+            else:
+                value = "N/A"
+
             print(f"[+] Got value on attempt {attempt}: {value}")
             break
         except Exception:
             print(f"[-] Attempt {attempt} failed to get value; retrying...")
-            # for debugging, print outerHTML of result area if last attempt
             if attempt == max_attempts:
                 try:
                     el = driver.find_element(By.XPATH, RESULT_XPATH)
@@ -166,15 +181,16 @@ while current <= END_DATE:
         "gold_price_vnd": value
     })
 
-    current += timedelta(days=1)
+    # move to the 1st of next month
+    current = add_one_month(current)
     time.sleep(0.4)
 
 # ----------------------------------------------------
 # SAVE CSV
 # ----------------------------------------------------
 df = pd.DataFrame(results)
-df.to_csv("gold_prices.csv", index=False)
+df.to_csv("gold_prices_monthly.csv", index=False)
 
-print("Saved: gold_prices.csv")
+print("Saved: gold_prices_monthly.csv")
 
 driver.quit()
