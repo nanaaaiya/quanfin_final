@@ -62,13 +62,26 @@ time.sleep(1)
 # ----------------------------------------------------
 results = []
 
+def close_ads_if_visible():
+    try:
+        close_btn = driver.find_element(By.XPATH, "//button[contains(@class,'close') or contains(@aria-label,'Close')]")
+        if close_btn.is_displayed():
+            driver.execute_script("arguments[0].click();", close_btn)
+            print("[+] Ad popup closed inside loop.")
+            time.sleep(0.5)
+    except:
+        pass
+
 current = START_DATE
 while current <= END_DATE:
 
     print("Processing:", current.strftime("%Y-%m-%d"))
 
+    # NEW: ad popups reappear randomly — close them
+    close_ads_if_visible()
+
     # -----------------------------
-    # Locate and write date
+    # Locate real date field
     # -----------------------------
     date_input = wait.until(
         EC.element_to_be_clickable((By.XPATH, "//*[@id='form_xau_date']"))
@@ -77,17 +90,17 @@ while current <= END_DATE:
     driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", date_input)
     time.sleep(0.2)
 
-    # Must clear using JS
+    # Clear using JS
     driver.execute_script("arguments[0].value = '';", date_input)
     time.sleep(0.1)
 
-    # Type the date in dd-mm-yyyy format
+    # Type date
     date_input.send_keys(current.strftime("%d-%m-%Y"))
 
-    # Ensure site reacts
+    # Dispatch events
     driver.execute_script("""
-    arguments[0].dispatchEvent(new Event('input', {bubbles:true}));
-    arguments[0].dispatchEvent(new Event('change', {bubbles:true}));
+        arguments[0].dispatchEvent(new Event('input', {bubbles:true}));
+        arguments[0].dispatchEvent(new Event('change', {bubbles:true}));
     """, date_input)
 
     time.sleep(0.4)
