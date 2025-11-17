@@ -14,7 +14,7 @@ URL = "https://goldbroker.com/charts/gold-price/vnd?#historical-chart"
 
 # Monthly from 01-Oct-2015 to 01-Oct-2025 (inclusive)
 START_DATE = datetime(2015, 10, 1)
-END_DATE   = datetime(2016, 10, 1)
+END_DATE   = datetime(2015, 12, 1)
 
 options = webdriver.ChromeOptions()
 options.add_argument("--start-maximized")
@@ -157,8 +157,9 @@ while current <= END_DATE:
             # CLEAN: remove currency symbols ₫ and đ (keep commas)
             if raw_value and raw_value.upper() not in ("N/A", "-", "--"):
                 cleaned = raw_value.replace("₫", "").replace("đ", "").strip()
-                # In case there are non-breaking spaces or other unicode spaces
+                cleaned = cleaned.replace(",", "")      # ← REMOVE COMMAS
                 cleaned = re.sub(r'[\u00A0\s]+', '', cleaned) if cleaned else cleaned
+
                 # If cleaned is empty after stripping, keep raw
                 value = cleaned if cleaned else raw_value
             else:
