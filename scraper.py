@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import time
 
 # Requirement: 
-# Install the required packages using: pip install webdriver-manager selenium
+# Install the required packages using: pip install webdriver-manager selenium pandas
 
 URL = "https://goldbroker.com/charts/gold-price/vnd?#historical-chart"
 
@@ -68,17 +68,28 @@ while current <= END_DATE:
     print("Processing:", current.strftime("%Y-%m-%d"))
 
     # -----------------------------
-    # Locate date field
+    # Locate and write date
     # -----------------------------
     date_input = wait.until(
-        EC.presence_of_element_located(
-            (By.XPATH, "//input[contains(@placeholder,'Select a date') or @type='text']")
-        )
+        EC.element_to_be_clickable((By.XPATH, "//*[@id='form_xau_date']"))
     )
 
-    # Clear and type date (dd-mm-yyyy)
-    date_input.clear()
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", date_input)
+    time.sleep(0.2)
+
+    # Must clear using JS
+    driver.execute_script("arguments[0].value = '';", date_input)
+    time.sleep(0.1)
+
+    # Type the date in dd-mm-yyyy format
     date_input.send_keys(current.strftime("%d-%m-%Y"))
+
+    # Ensure site reacts
+    driver.execute_script("""
+    arguments[0].dispatchEvent(new Event('input', {bubbles:true}));
+    arguments[0].dispatchEvent(new Event('change', {bubbles:true}));
+    """, date_input)
+
     time.sleep(0.4)
 
     # -----------------------------
