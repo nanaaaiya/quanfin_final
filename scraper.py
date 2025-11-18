@@ -14,7 +14,7 @@ URL = "https://goldbroker.com/charts/gold-price/vnd?#historical-chart"
 
 # Monthly from 01-Oct-2015 to 01-Oct-2025 (inclusive)
 START_DATE = datetime(2015, 10, 1)
-END_DATE   = datetime(2015, 12, 1)
+END_DATE   = datetime(2025, 10, 1)
 
 options = webdriver.ChromeOptions()
 options.add_argument("--start-maximized")
